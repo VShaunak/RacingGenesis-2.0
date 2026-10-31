@@ -1,3 +1,6 @@
+https://vshaunak.github.io/RacingGenesis-2.0/prototype/index.html
+Live website
+
 [Racing_Genesis_Assignment_4_Alpha_Report.md](https://github.com/user-attachments/files/34208905/Racing_Genesis_Assignment_4_Alpha_Report.md)
 # Racing Genesis: Production Planning & MVP 2.0 (Alpha Build)
 **Assignment 4 Technical Report • Rutgers University • CS 549 (AI for Visual Computing)**
