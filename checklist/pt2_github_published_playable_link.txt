@@ -1,0 +1,28 @@
+RACING GENESIS — PROJECT LINKS & SOURCE CODE REPOSITORY
+Course: CS 549 (AI for Visual Computing) • Rutgers University
+Assignment: Assignment 5 (Beta Build & Advanced Feature Integration)
+Date: November 9, 2026
+Team: Shaunak Vidwans, Pavan Sai Komara, Sridevi Mudiyanur Ramamurthy, Zeba Afreen
+
+================================================================================
+OFFICIAL PROJECT REPOSITORY & PLAYABLE DEMO LINKS
+================================================================================
+
+1. Public GitHub Source Code Repository:
+   https://github.com/VShaunak/RacingGenesis-2.0
+
+2. Playable Local WebGL Build:
+   http://localhost:8081
+   (Launch via: python serve.py 8081 inside prototype/)
+
+================================================================================
+LOCAL EXECUTION INSTRUCTIONS
+================================================================================
+1. Open PowerShell or Terminal in the prototype folder:
+   cd "D:\My files\Rutgers\7-AI for Visual Computing\All assignments\Assignment-5\prototype"
+
+2. Start the high-performance local web server:
+   python serve.py 8081
+
+3. Open any modern desktop web browser (Chrome, Edge, Firefox) to:
+   http://localhost:8081

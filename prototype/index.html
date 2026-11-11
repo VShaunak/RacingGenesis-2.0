@@ -7,8 +7,8 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <meta name="theme-color" content="#070b14" />
-    <title>Racing Genesis - F1 Pro Simulator (Windows 11 Edition)</title>
-    <link rel="stylesheet" href="style.css?v=6.4" />
+    <title>Racing Genesis - F1 Pro Simulator (Beta Build v7.0)</title>
+    <link rel="stylesheet" href="style.css?v=7.0" />
   </head>
   <body>
     <!-- 3D WebGL Canvas Layer -->
@@ -46,6 +46,10 @@
         </div>
 
         <div class="header-right">
+          <div class="pill-stat gap-stat" id="opponentGapPill" title="Delta to Sparring Car">
+            <span class="stat-name">P2 GAP</span>
+            <span class="stat-val highlight" id="opponentGapDisplay">+1.45s</span>
+          </div>
           <div class="pill-stat fps-stat">
             <span class="stat-name">PERF</span>
             <span class="stat-val highlight" id="fpsDisplay">90 FPS</span>
@@ -83,6 +87,15 @@
             <div class="f1-presets-grid" id="panelDriverModeGrid">
               <button class="f1-preset-pill active" data-mode="ai">🤖 Autonomous AI</button>
               <button class="f1-preset-pill" data-mode="manual">🎮 Manual (WASD)</button>
+            </div>
+          </div>
+
+          <!-- Beta Multi-Car & Visual FX Toggles -->
+          <div class="f1-presets-section" style="margin-top: 10px;">
+            <span class="f1-presets-title">BETA SIMULATION MODULES</span>
+            <div class="f1-presets-grid">
+              <button class="f1-preset-pill active" id="btnToggleOpponent">🏎️ AI Sparring Car: ON</button>
+              <button class="f1-preset-pill active" id="btnToggleFX">💨 Smoke &amp; FX: ON</button>
             </div>
           </div>
 
@@ -252,6 +265,21 @@
                 <div class="meter-bg"><div class="meter-bar bar-green" id="throttleMeter" style="width: 0%;"></div></div>
               </div>
             </div>
+
+            <!-- Beta Live Telemetry Oscillogram Graph -->
+            <div class="telemetry-graph-card">
+              <div class="telemetry-graph-header">
+                <span class="sub-label">LIVE TELEMETRY TRACE</span>
+                <span class="graph-rate-tag">90 Hz</span>
+              </div>
+              <canvas id="telemetryGraphCanvas" width="280" height="80"></canvas>
+              <div class="graph-legend-row">
+                <span class="leg-item leg-spd"><span class="leg-dot spd-dot"></span>Speed</span>
+                <span class="leg-item leg-thr"><span class="leg-dot thr-dot"></span>Throttle</span>
+                <span class="leg-item leg-brk"><span class="leg-dot brk-dot"></span>Brake</span>
+                <span class="leg-item leg-lat"><span class="leg-dot lat-dot"></span>Lat-G</span>
+              </div>
+            </div>
           </div>
 
           <div class="panel-divider"></div>
@@ -389,6 +417,6 @@
     </div>
 
     <!-- Application Script (ES Module with cache-busting) -->
-    <script type="module" src="app.js?v=6.4"></script>
+    <script type="module" src="app.js?v=7.0"></script>
   </body>
 </html>

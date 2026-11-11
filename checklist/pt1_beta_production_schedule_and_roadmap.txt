@@ -1,0 +1,54 @@
+RACING GENESIS — ASSIGNMENT 5 BETA PRODUCTION SCHEDULE & ROADMAP
+Course: CS 549 (AI for Visual Computing) • Rutgers University
+Build Version: Beta Build v7.0
+Date: November 9, 2026
+Team: Shaunak Vidwans, Pavan Sai Komara, Sridevi Mudiyanur Ramamurthy, Zeba Afreen
+
+================================================================================
+1. EXECUTIVE SPRINT SUMMARY: ALPHA TO BETA TRANSITION
+================================================================================
+In Assignment 4 (Alpha Build), we established the foundational 3-state game loop (Start lights countdown, active 90 FPS racing, and checkered flag finish celebration), verified 5 official Grand Prix circuits (Monza, Silverstone, Spa, Monaco, Suzuka), and unified manual WASD control with heuristic autonomous AI navigation.
+
+In Assignment 5 (Beta Build), our development focus expanded our vertical slice by directly connecting secondary technical pillars into the active driving loop:
+- Hardware-instanced GPU particle system for tire smoke and skidmark decals.
+- Thermal friction brake disc incandescence shader (molten orange-red glow under threshold braking, convective air cooling at speed).
+- Multi-car racing simulation featuring an AI sparring opponent (Ferrari Scarlet livery) with dynamic lookahead pacing and real-time HUD gap tracking.
+- Curvilinear boundary collision with curb rumble haptics (chassis vertical shudder, camera screen shake, and 48 Hz Web Audio vibration).
+- Live 90 Hz multi-channel telemetry canvas waveform oscillogram plotting speed, throttle, brake, and lateral G traces.
+- Procedural atmospheric sky gradient texture enhancing overall visual cohesion.
+
+================================================================================
+2. COMPLETED PRODUCTION SCHEDULE & BUFFER WEEK ROADMAP
+================================================================================
+Week 9 (Alpha Build - MVP 2.0) [STATUS: COMPLETED]
+✔ Start, Active, and End game loop state machine with countdown signals and checkered flag celebration.
+✔ 5 authentic Grand Prix circuits pre-loaded with official lengths (Monza 5,793m, Silverstone, Spa, Monaco, Suzuka).
+✔ Custom circuit length scaling from 1,000m to 10,000m with automatic trackside entity repositioning.
+✔ Full manual WASD keyboard controls (progressive steering, throttle, reverse) alongside autonomous AI mode.
+✔ 90 FPS WebGL rendering engine with zero-allocation Vector3 scratch pools.
+
+Week 10 (Visual Shaders & Particles) [STATUS: COMPLETED - BETA]
+✔ Single draw-call THREE.InstancedMesh tire smoke particle system (120 particles, billboarded soft radial sprites).
+✔ Dynamic asphalt skidmark ribbon segments deposited along tire contact paths under heavy cornering or lockup.
+✔ Brake disc thermal incandescence shader (rotors glow molten red at 800°C under threshold deceleration).
+✔ Procedural atmospheric daylight sky dome gradient texture blending horizon haze with alpine zenith blue.
+
+Week 11 (Boundaries & Curb Haptics) [STATUS: COMPLETED - BETA]
+✔ High-frequency curb contact detection triggering chassis micro-oscillations and camera rumble.
+✔ Synthesized 48 Hz Web Audio low-frequency square wave harmonics for curb rumble strip buzzing.
+✔ Off-track grass/gravel trap drag penalties (-34 m/s²) and kicking dust particles preventing corner cutting.
+
+Week 12 (Multi-Car Simulation) [STATUS: COMPLETED - BETA]
+✔ Secondary F1 racing entity (Sparring Opponent AI) with Scarlet Red and Gold livery.
+✔ Lookahead spline pacing anticipating upcoming corner radii and holding overtaking lateral lane offset.
+✔ Real-time time delta calculation displayed directly on the HUD (P2 GAP: +1.45s).
+
+Week 13 (Live Telemetry Pipeline) [STATUS: COMPLETED - BETA]
+✔ Rolling 75-sample circular buffer in HUD Telemetry drawer plotting synchronized live waveforms (Speed, Throttle, Brake, Lat-G).
+✔ UI control toggles in Track Editor drawer for AI Sparring Car on/off and Particle FX on/off.
+
+Week 14 (Dedicated Buffer Week - Feature Freeze) [STATUS: UPCOMING FINAL SPRINT]
+— Strict feature freeze across all simulation modules.
+— Cross-browser stress testing and profiling (Google Chrome, Microsoft Edge, Mozilla Firefox).
+— WebGL memory audits confirming zero heap allocation leaks over prolonged 20-lap sessions.
+— Final 4K 60 FPS gameplay capture and project documentation polish.

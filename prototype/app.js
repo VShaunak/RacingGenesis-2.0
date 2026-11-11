@@ -83,6 +83,23 @@ function createGrassTexture() {
   return texture;
 }
 
+function createSkyGradientTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+  const grad = ctx.createLinearGradient(0, 512, 0, 0);
+  grad.addColorStop(0, '#e2effa'); // Atmosphere horizon
+  grad.addColorStop(0.2, '#b2d7f7'); // Low sky
+  grad.addColorStop(0.6, '#4691e4'); // Mid sky
+  grad.addColorStop(1.0, '#155bb3'); // Deep zenith
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 64, 512);
+  const texture = new THREE.CanvasTexture(canvas);
+  return texture;
+}
+
+
 function createCheckeredFinishTexture() {
   const canvas = document.createElement("canvas");
   canvas.width = 512;
@@ -1730,6 +1747,8 @@ class RaceCar3D {
 
     this.helmetMesh = null;
     this.visorMesh = null;
+    this.brakeHeat = 0.0;
+    this.brakeRotorMat = null;
 
     this.buildModel();
   }
@@ -1739,7 +1758,14 @@ class RaceCar3D {
     const liveryCyanMat = new THREE.MeshStandardMaterial({ color: 0x00f2fe, roughness: 0.18, metalness: 0.85 });
     const haloTitaniumMat = new THREE.MeshStandardMaterial({ color: 0x242c38, roughness: 0.25, metalness: 0.95 });
     const darkAeroMat = new THREE.MeshStandardMaterial({ color: 0x080a0f, roughness: 0.45, metalness: 0.7 });
-    const brakeRotorMat = new THREE.MeshStandardMaterial({ color: 0x6e7884, metalness: 0.9, roughness: 0.2 });
+    this.brakeRotorMat = new THREE.MeshStandardMaterial({
+      color: 0x6e7884,
+      metalness: 0.9,
+      roughness: 0.2,
+      emissive: new THREE.Color(0x000000),
+      emissiveIntensity: 0.0,
+    });
+    const brakeRotorMat = this.brakeRotorMat;
     const brakeCaliperMat = new THREE.MeshStandardMaterial({ color: 0xff1744, metalness: 0.7, roughness: 0.3 });
     const rimAlloyMat = new THREE.MeshStandardMaterial({ color: 0x141820, metalness: 0.92, roughness: 0.18 });
 
@@ -2438,6 +2464,23 @@ class RaceCar3D {
       this.chassisMesh.rotation.x = THREE.MathUtils.lerp(this.chassisMesh.rotation.x, pitch, smoothFactor);
       this.chassisMesh.rotation.z = THREE.MathUtils.lerp(this.chassisMesh.rotation.z, roll, smoothFactor);
     }
+
+    // Beta: Brake Disc Thermal Incandescence (Molten Rotor Glow)
+    if (this.brakeRotorMat) {
+      if (isBraking) {
+        this.brakeHeat = Math.min(1.0, (this.brakeHeat || 0) + dt * 1.8);
+      } else {
+        const cooling = 0.25 + (Math.abs(speed) / 65.0) * 0.95;
+        this.brakeHeat = Math.max(0.0, (this.brakeHeat || 0) - dt * cooling);
+      }
+      if (this.brakeHeat > 0.04) {
+        this.brakeRotorMat.emissive.setHex(0xff3300);
+        this.brakeRotorMat.emissiveIntensity = Math.pow(this.brakeHeat, 1.25) * 2.8;
+      } else {
+        this.brakeRotorMat.emissive.setHex(0x000000);
+        this.brakeRotorMat.emissiveIntensity = 0.0;
+      }
+    }
   }
 }
 
@@ -2658,6 +2701,8 @@ class RacingEngineSound {
     this.rpm = 4500;
     this.gear = 1;
     this.isBraking = false;
+    this.rumbleOsc = null;
+    this.rumbleGain = null;
   }
 
   createDistortionCurve(amount = 22) {
@@ -2731,6 +2776,14 @@ class RacingEngineSound {
       this.osc3.start();
       this.turboOsc.start();
 
+      this.rumbleOsc = this.ctx.createOscillator();
+      this.rumbleOsc.type = "sawtooth";
+      this.rumbleOsc.frequency.setValueAtTime(48, this.ctx.currentTime);
+      this.rumbleGain = this.ctx.createGain();
+      this.rumbleGain.gain.setValueAtTime(0.0, this.ctx.currentTime);
+      this.rumbleOsc.connect(this.rumbleGain).connect(this.masterGain);
+      this.rumbleOsc.start();
+
       this.enabled = true;
     } else {
       if (this.ctx.state === "suspended") {
@@ -2742,7 +2795,7 @@ class RacingEngineSound {
     return this.enabled;
   }
 
-  update(speedMph, isBraking = false, throttle = 0.8, rpm = 4500, gear = 1) {
+  update(speedMph, isBraking = false, throttle = 0.8, rpm = 4500, gear = 1, isCurb = false) {
     this.rpm = rpm;
     this.gear = gear;
     this.isBraking = isBraking;
@@ -2763,6 +2816,15 @@ class RacingEngineSound {
     const turboFreq = 2600 + (this.rpm / maxRPM) * 3200;
     this.turboOsc.frequency.setTargetAtTime(turboFreq, now, 0.05);
     this.turboGain.gain.setTargetAtTime(isBraking ? 0.005 : 0.02 + throttle * 0.015, now, 0.05);
+
+    if (this.rumbleGain && this.rumbleOsc) {
+      if (isCurb && speedMph > 15) {
+        this.rumbleGain.gain.setTargetAtTime(0.14, now, 0.03);
+        this.rumbleOsc.frequency.setTargetAtTime(40 + (speedMph * 0.35), now, 0.03);
+      } else {
+        this.rumbleGain.gain.setTargetAtTime(0.0, now, 0.05);
+      }
+    }
   }
 }
 
@@ -2920,6 +2982,306 @@ class HeuristicNPCDriver {
    Main Application Orchestrator for Assignment 3 (Windows 11 Edition)
    ========================================================================== */
 
+/* ==========================================================================
+   Beta: High-Performance GPU Particle System (Tire Smoke & Skidmark Trails)
+   ========================================================================== */
+
+class TireSmokeAndSkidSystem {
+  constructor(scene) {
+    this.scene = scene;
+    this.maxParticles = 120;
+    this.particles = [];
+    this.enabled = true;
+
+    // Soft circular radial smoke texture
+    const smokeCanvas = document.createElement("canvas");
+    smokeCanvas.width = 64;
+    smokeCanvas.height = 64;
+    const ctx = smokeCanvas.getContext("2d");
+    const grad = ctx.createRadialGradient(32, 32, 2, 32, 32, 30);
+    grad.addColorStop(0, "rgba(235, 240, 248, 0.75)");
+    grad.addColorStop(0.35, "rgba(210, 220, 230, 0.45)");
+    grad.addColorStop(0.7, "rgba(180, 190, 205, 0.15)");
+    grad.addColorStop(1, "rgba(160, 175, 195, 0.0)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 64, 64);
+    const smokeTex = new THREE.CanvasTexture(smokeCanvas);
+
+    const geom = new THREE.PlaneGeometry(1, 1);
+    this.smokeMat = new THREE.MeshBasicMaterial({
+      map: smokeTex,
+      transparent: true,
+      opacity: 0.62,
+      depthWrite: false,
+      blending: THREE.NormalBlending,
+      side: THREE.DoubleSide,
+    });
+    this.instancedMesh = new THREE.InstancedMesh(geom, this.smokeMat, this.maxParticles);
+    this.instancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.scene.add(this.instancedMesh);
+
+    const dummy = new THREE.Object3D();
+    dummy.scale.set(0, 0, 0);
+    dummy.updateMatrix();
+    for (let i = 0; i < this.maxParticles; i++) {
+      this.particles.push({
+        active: false,
+        pos: new THREE.Vector3(),
+        vel: new THREE.Vector3(),
+        scale: 0.2,
+        life: 0,
+        maxLife: 0.7,
+      });
+      this.instancedMesh.setMatrixAt(i, dummy.matrix);
+    }
+    this.instancedMesh.instanceMatrix.needsUpdate = true;
+    this.particleIndex = 0;
+
+    // Dynamic Skidmark Line Segments
+    this.maxSkidPoints = 180;
+    this.skidPositions = new Float32Array(this.maxSkidPoints * 3);
+    this.skidGeom = new THREE.BufferGeometry();
+    this.skidGeom.setAttribute("position", new THREE.BufferAttribute(this.skidPositions, 3));
+    const skidMat = new THREE.LineBasicMaterial({
+      color: 0x121418,
+      linewidth: 3,
+      transparent: true,
+      opacity: 0.78,
+    });
+    this.skidLine = new THREE.LineSegments(this.skidGeom, skidMat);
+    this.scene.add(this.skidLine);
+    this.skidWriteIndex = 0;
+  }
+
+  emitSmoke(pos, velOffset, intensity = 1.0) {
+    if (!this.enabled) return;
+    const p = this.particles[this.particleIndex];
+    p.active = true;
+    p.pos.copy(pos);
+    p.vel.set(
+      (Math.random() - 0.5) * 0.4 + velOffset.x * 0.15,
+      0.45 + Math.random() * 0.55,
+      (Math.random() - 0.5) * 0.4 + velOffset.z * 0.15
+    );
+    p.scale = 0.35 + Math.random() * 0.25;
+    p.life = 0.65 + Math.random() * 0.25;
+    p.maxLife = p.life;
+
+    this.particleIndex = (this.particleIndex + 1) % this.maxParticles;
+  }
+
+  addSkidmarkSegment(p1, p2) {
+    if (!this.enabled) return;
+    const idx = (this.skidWriteIndex * 6) % (this.maxSkidPoints * 3);
+    this.skidPositions[idx] = p1.x;
+    this.skidPositions[idx + 1] = p1.y + 0.04;
+    this.skidPositions[idx + 2] = p1.z;
+    this.skidPositions[idx + 3] = p2.x;
+    this.skidPositions[idx + 4] = p2.y + 0.04;
+    this.skidPositions[idx + 5] = p2.z;
+    this.skidWriteIndex = (this.skidWriteIndex + 1) % (this.maxSkidPoints / 2);
+    this.skidGeom.attributes.position.needsUpdate = true;
+  }
+
+  update(dt, camera) {
+    const dummy = new THREE.Object3D();
+    let needsUpdate = false;
+
+    for (let i = 0; i < this.maxParticles; i++) {
+      const p = this.particles[i];
+      if (p.active) {
+        p.life -= dt;
+        if (p.life <= 0) {
+          p.active = false;
+          dummy.scale.set(0, 0, 0);
+          dummy.updateMatrix();
+          this.instancedMesh.setMatrixAt(i, dummy.matrix);
+          needsUpdate = true;
+        } else {
+          p.pos.addScaledVector(p.vel, dt);
+          p.scale += dt * 1.5;
+          dummy.position.copy(p.pos);
+          dummy.scale.set(p.scale, p.scale, p.scale);
+          dummy.quaternion.copy(camera.quaternion);
+          dummy.updateMatrix();
+          this.instancedMesh.setMatrixAt(i, dummy.matrix);
+          needsUpdate = true;
+        }
+      }
+    }
+    if (needsUpdate) {
+      this.instancedMesh.instanceMatrix.needsUpdate = true;
+    }
+  }
+
+  clear() {
+    const dummy = new THREE.Object3D();
+    dummy.scale.set(0, 0, 0);
+    dummy.updateMatrix();
+    for (let i = 0; i < this.maxParticles; i++) {
+      this.particles[i].active = false;
+      this.instancedMesh.setMatrixAt(i, dummy.matrix);
+    }
+    this.instancedMesh.instanceMatrix.needsUpdate = true;
+    this.skidPositions.fill(0);
+    this.skidGeom.attributes.position.needsUpdate = true;
+  }
+}
+
+/* ==========================================================================
+   Beta: Multi-Car Sparring AI Opponent (Dynamic Racing Agent)
+   ========================================================================== */
+
+class OpponentCarAgent {
+  constructor(scene) {
+    this.scene = scene;
+    this.car = new RaceCar3D(scene);
+    this.recolorLivery();
+
+    this.progress = 0.07;
+    this.speed = 52.0;
+    this.targetSpeed = 52.0;
+    this.lateralOffset = 1.75;
+    this.enabled = true;
+    this.tempVec = new THREE.Vector3();
+  }
+
+  recolorLivery() {
+    const scarletMat = new THREE.MeshStandardMaterial({ color: 0xcc0000, roughness: 0.22, metalness: 0.85 });
+    this.car.carGroup.traverse((child) => {
+      if (child.isMesh && child.material) {
+        if (child.material.color && (child.material.color.getHex() === 0x00f2fe || child.material.color.getHex() === 0x00c4cc)) {
+          child.material = scarletMat;
+        }
+      }
+    });
+  }
+
+  update(dt, track, playerProgress, playerSpeed) {
+    if (!this.enabled || !track) {
+      this.car.carGroup.visible = false;
+      return;
+    }
+    this.car.carGroup.visible = true;
+
+    const trackLength = track.totalLength || 5000;
+    const lookaheadFraction = Math.min(0.14, (this.speed * 1.3) / trackLength);
+    const previewProgress = (this.progress + lookaheadFraction) % 1.0;
+    const upcomingCurvature = track.getPathCurvature(previewProgress);
+
+    const rawApex = Math.sqrt(42.0 / Math.max(0.0008, upcomingCurvature));
+    this.targetSpeed = Math.max(22.0, Math.min(94.0, rawApex));
+
+    let accelRate = 22.0;
+    if (this.speed < this.targetSpeed) {
+      this.speed = Math.min(this.targetSpeed, this.speed + accelRate * dt);
+    } else {
+      this.speed = Math.max(this.targetSpeed, this.speed - 36.0 * dt);
+    }
+
+    const isBraking = (this.targetSpeed < this.speed - 4.0);
+    const dProgress = (this.speed * dt) / trackLength;
+    this.progress = (this.progress + dProgress) % 1.0;
+
+    track.getPathPosition(this.progress, this.tempVec);
+    const heading = track.getTrajectoryHeading(this.progress);
+
+    const perpX = Math.cos(heading);
+    const perpZ = -Math.sin(heading);
+    this.car.carGroup.position.set(
+      this.tempVec.x + perpX * this.lateralOffset,
+      this.tempVec.y,
+      this.tempVec.z + perpZ * this.lateralOffset
+    );
+
+    let dRot = heading - this.car.carGroup.rotation.y;
+    while (dRot > Math.PI) dRot -= Math.PI * 2;
+    while (dRot < -Math.PI) dRot += Math.PI * 2;
+    this.car.carGroup.rotation.y += dRot * Math.min(1.0, 10.0 * dt);
+
+    this.car.updateVisuals(this.speed, (dRot / (dt + 0.001)) * 0.04, isBraking, dt);
+  }
+}
+
+/* ==========================================================================
+   Beta: Live Telemetry Canvas Waveform Graph (90 FPS Oscillogram)
+   ========================================================================== */
+
+class LiveTelemetryGraph {
+  constructor(canvasId) {
+    this.canvas = document.getElementById(canvasId);
+    if (!this.canvas) return;
+    this.ctx = this.canvas.getContext("2d");
+    this.bufferSize = 75;
+    this.speedHistory = new Float32Array(this.bufferSize);
+    this.throttleHistory = new Float32Array(this.bufferSize);
+    this.brakeHistory = new Float32Array(this.bufferSize);
+    this.latGHistory = new Float32Array(this.bufferSize);
+    this.head = 0;
+  }
+
+  record(speedNorm, throttle, brake, latGNorm) {
+    if (!this.ctx) return;
+    this.speedHistory[this.head] = Math.max(0, Math.min(1, speedNorm));
+    this.throttleHistory[this.head] = Math.max(0, Math.min(1, throttle));
+    this.brakeHistory[this.head] = Math.max(0, Math.min(1, brake));
+    this.latGHistory[this.head] = Math.max(-1, Math.min(1, latGNorm));
+    this.head = (this.head + 1) % this.bufferSize;
+  }
+
+  draw() {
+    if (!this.ctx) return;
+    const w = this.canvas.width;
+    const h = this.canvas.height;
+    const ctx = this.ctx;
+
+    ctx.fillStyle = "#070a10";
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.07)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let y = 0.25; y <= 0.75; y += 0.25) {
+      const py = Math.round(h * y);
+      ctx.moveTo(0, py);
+      ctx.lineTo(w, py);
+    }
+    ctx.moveTo(0, h * 0.5);
+    ctx.lineTo(w, h * 0.5);
+    ctx.stroke();
+
+    const N = this.bufferSize;
+    const dx = w / (N - 1);
+
+    const drawLine = (history, color, scaleY, offsetY) => {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      for (let i = 0; i < N; i++) {
+        const ringIdx = (this.head + i) % N;
+        const val = history[ringIdx];
+        const px = i * dx;
+        const py = h - (val * scaleY + offsetY) * h;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+    };
+
+    drawLine(this.speedHistory, "#00f2fe", 0.90, 0.05);
+    drawLine(this.throttleHistory, "#10b981", 0.90, 0.05);
+    drawLine(this.brakeHistory, "#ef4444", 0.90, 0.05);
+    drawLine(this.latGHistory, "#f59e0b", 0.42, 0.50);
+
+    ctx.strokeStyle = "rgba(0, 242, 254, 0.5)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(w - 1, 0);
+    ctx.lineTo(w - 1, h);
+    ctx.stroke();
+  }
+}
+
 class RacingGenesisApp {
   constructor() {
     this.container = $("webgl-container") || document.body;
@@ -2939,10 +3301,20 @@ class RacingGenesisApp {
         powerPreference: "high-performance",
       });
     } catch (_) {
-      this.renderer = new THREE.WebGLRenderer({
-        antialias: true,
-        powerPreference: "high-performance",
-      });
+      try {
+        this.renderer = new THREE.WebGLRenderer({
+          antialias: true,
+          powerPreference: "high-performance",
+        });
+      } catch (err) {
+        this.renderer = {
+          domElement: document.createElement("canvas"),
+          shadowMap: {},
+          setSize: () => {},
+          setPixelRatio: () => {},
+          render: () => {},
+        };
+      }
     }
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -2962,6 +3334,14 @@ class RacingGenesisApp {
     this.car = new RaceCar3D(this.scene);
     this.cameraManager = new CameraManager3D(this.camera, this.renderer.domElement);
     this.audio = new RacingEngineSound();
+
+    // Beta: Secondary Technical Pillars (Smoke/Skid Particles, Opponent AI, Oscilloscope Telemetry)
+    this.tireSmokeSystem = new TireSmokeAndSkidSystem(this.scene);
+    this.opponent = new OpponentCarAgent(this.scene);
+    this.telemetryGraph = new LiveTelemetryGraph("telemetryGraphCanvas");
+    this.isOverCurb = false;
+    this.prevSkidLeft = null;
+    this.prevSkidRight = null;
 
     // 4. Raycasting & Handle Dragging
     this.raycaster = new THREE.Raycaster();
@@ -3047,7 +3427,7 @@ class RacingGenesisApp {
     this.scene.add(this.groundMesh);
 
     const skyGeom = new THREE.SphereGeometry(30000, 32, 16);
-    const skyMat = new THREE.MeshBasicMaterial({ color: 0x82bcee, side: THREE.BackSide });
+    const skyMat = new THREE.MeshBasicMaterial({ map: createSkyGradientTexture(), side: THREE.BackSide });
     this.skyDome = new THREE.Mesh(skyGeom, skyMat);
     this.scene.add(this.skyDome);
 
@@ -3199,6 +3579,32 @@ class RacingGenesisApp {
       if (e.key === "[") togglePanel(leftPanel, btnToggleLeft);
       if (e.key === "]") togglePanel(rightPanel, btnToggleRight);
     });
+
+    // Beta Feature Toggles
+    const btnToggleOpponent = $("btnToggleOpponent");
+    if (btnToggleOpponent) {
+      btnToggleOpponent.addEventListener("click", () => {
+        if (!this.opponent) return;
+        this.opponent.enabled = !this.opponent.enabled;
+        btnToggleOpponent.classList.toggle("active", this.opponent.enabled);
+        btnToggleOpponent.textContent = this.opponent.enabled ? "🏎️ AI Sparring Car: ON" : "🏎️ AI Sparring Car: OFF";
+        const pill = $("opponentGapPill");
+        if (pill) pill.style.display = this.opponent.enabled ? "" : "none";
+      });
+    }
+
+    const btnToggleFX = $("btnToggleFX");
+    if (btnToggleFX) {
+      btnToggleFX.addEventListener("click", () => {
+        if (!this.tireSmokeSystem) return;
+        this.tireSmokeSystem.enabled = !this.tireSmokeSystem.enabled;
+        btnToggleFX.classList.toggle("active", this.tireSmokeSystem.enabled);
+        btnToggleFX.textContent = this.tireSmokeSystem.enabled ? "💨 Smoke & FX: ON" : "💨 Smoke & FX: OFF";
+        if (!this.tireSmokeSystem.enabled) {
+          this.tireSmokeSystem.clear();
+        }
+      });
+    }
 
     // Camera Switcher
     document.querySelectorAll(".cam-btn").forEach((btn) => {
@@ -3869,6 +4275,25 @@ class RacingGenesisApp {
     this.progress = this.track.getNearestProgress(this.car.carGroup.position, prevProgress);
     this.lapTime += dt;
 
+    // Beta: Curb and Off-Track Boundaries Detection
+    const nearestSample = this.track.getSampleAt(this.progress);
+    const distToCenter = nearestSample.position.distanceTo(this.car.carGroup.position);
+    const roadHalf = this.track.roadWidth * 0.5;
+
+    if (distToCenter > (roadHalf - 0.7) && distToCenter < (roadHalf + 0.85)) {
+      this.isOverCurb = true;
+      this.car.carGroup.position.y = 0.05 + Math.sin(performance.now() * 0.065) * 0.035;
+      this.car.carGroup.rotation.z += (Math.random() - 0.5) * 0.015;
+    } else if (distToCenter >= (roadHalf + 0.85)) {
+      this.isOverCurb = false;
+      this.speed = Math.max(0, this.speed - 34.0 * dt);
+      if (this.tireSmokeSystem && Math.abs(this.speed) > 4) {
+        this.tireSmokeSystem.emitSmoke(this.car.carGroup.position, new THREE.Vector3(0, 0, 0), 1.6);
+      }
+    } else {
+      this.isOverCurb = false;
+    }
+
     // Lateral G estimation
     const turnD = this.steerAngle * this.speed;
     this.lateralG = (turnD * this.speed) / (G_ACCEL * 12.0);
@@ -3909,6 +4334,11 @@ class RacingGenesisApp {
     // 3. Lateral Acceleration & Kamm Friction Circle
     const currLatG = (this.speed * this.speed * currPathCurvature) / G_ACCEL;
     this.lateralG = currLatG;
+
+    // Beta: Autonomous Line Curb Contact
+    const pathOffset = this.driverAI.currentPathOffsets ? this.driverAI.currentPathOffsets[currSample.index] : 0;
+    const roadHalfAI = this.track.roadWidth * 0.5;
+    this.isOverCurb = Math.abs(pathOffset) > (roadHalfAI - 1.1);
     const latAccelMs = currLatG * G_ACCEL;
     const longGripBudget = Math.sqrt(Math.max(0, aeroGrip * aeroGrip - latAccelMs * latAccelMs));
 
@@ -4225,10 +4655,71 @@ class RacingGenesisApp {
       this.car.haloStrut.visible = !isCockpit;
     }
 
-    // 8. Update Audio Synthesizer (in sync with live RPM and Gear)
+    // Beta: Update Opponent AI & Particle System
+    if (this.opponent) {
+      this.opponent.update(dt, this.track, this.progress, this.speed);
+    }
+    if (this.tireSmokeSystem) {
+      this.tireSmokeSystem.update(dt, this.camera);
+    }
+
+    // Dynamic Tire Smoke & Skidmarks under heavy braking / slip
+    const isSlipping = (isBraking && Math.abs(this.speed) > 6.0) || (Math.abs(this.lateralG) > 2.2 && Math.abs(this.speed) > 16.0);
+    if (isSlipping && this.tireSmokeSystem && this.tireSmokeSystem.enabled) {
+      const carPos = this.car.carGroup.position;
+      const carRot = this.car.carGroup.rotation.y;
+      const cosR = Math.cos(carRot);
+      const sinR = Math.sin(carRot);
+      const rlX = carPos.x - cosR * 1.18 - sinR * 1.45;
+      const rlZ = carPos.z + sinR * 1.18 - cosR * 1.45;
+      const rrX = carPos.x + cosR * 1.18 - sinR * 1.45;
+      const rrZ = carPos.z - sinR * 1.18 - cosR * 1.45;
+
+      const pLeft = new THREE.Vector3(rlX, 0.05, rlZ);
+      const pRight = new THREE.Vector3(rrX, 0.05, rrZ);
+      const fwdVel = new THREE.Vector3(-sinR * this.speed * 0.15, 0, -cosR * this.speed * 0.15);
+
+      this.tireSmokeSystem.emitSmoke(pLeft, fwdVel, 1.0);
+      this.tireSmokeSystem.emitSmoke(pRight, fwdVel, 1.0);
+
+      if (this.prevSkidLeft && this.prevSkidRight) {
+        this.tireSmokeSystem.addSkidmarkSegment(this.prevSkidLeft, pLeft);
+        this.tireSmokeSystem.addSkidmarkSegment(this.prevSkidRight, pRight);
+      }
+      this.prevSkidLeft = pLeft;
+      this.prevSkidRight = pRight;
+    } else {
+      this.prevSkidLeft = null;
+      this.prevSkidRight = null;
+    }
+
+    // 8. Update Audio Synthesizer (in sync with live RPM, Gear and Curb Vibration)
     if (this.audio) {
       const speedMph = this.speed * MS_TO_MPH;
-      this.audio.update(speedMph, isBraking, this.throttleLevel, this.currentRPM, this.currentGear);
+      this.audio.update(speedMph, isBraking, this.throttleLevel, this.currentRPM, this.currentGear, this.isOverCurb);
+    }
+
+    // Beta: Update Opponent Gap & Oscilloscope Telemetry Trace
+    if (this.opponent && this.opponent.enabled) {
+      let deltaProg = this.opponent.progress - this.progress;
+      while (deltaProg > 0.5) deltaProg -= 1.0;
+      while (deltaProg < -0.5) deltaProg += 1.0;
+      const distMeters = deltaProg * (this.track ? this.track.totalLength : 5000);
+      const gapSec = distMeters / Math.max(12, Math.abs(this.speed));
+      const gapDisp = $("opponentGapDisplay");
+      if (gapDisp) {
+        gapDisp.textContent = (gapSec >= 0 ? "+" : "") + gapSec.toFixed(2) + "s";
+        gapDisp.style.color = (gapSec >= 0 ? "#ff4444" : "#10b981");
+      }
+    }
+    if (this.telemetryGraph) {
+      this.telemetryGraph.record(
+        Math.abs(this.speed) / 98.0,
+        this.throttleLevel,
+        this.brakeLevel,
+        this.lateralG / 5.0
+      );
+      this.telemetryGraph.draw();
     }
 
     // 9. Update HUD Telemetry & In-Car 3D Dashboard (Every single frame unconditionally)
