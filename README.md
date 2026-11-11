@@ -1,3 +1,4 @@
+# Published Link : https://vshaunak.github.io/RacingGenesis-2.0/prototype/index.html
 # Racing Genesis — Assignment 5: Beta Build & Advanced Feature Integration
 
 **Course:** CS 549 (AI for Visual Computing) — Rutgers University  
